@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.jar.JarFile;
 
@@ -34,8 +35,14 @@ import java.util.jar.JarFile;
 class BootstrapApiInjector {
 
     private static final String RESOURCE_NAME = "/pyroscope-bootstrap.jar.bin";
+    private static final String PYROSCOPE_JFR_DIR = "PYROSCOPE_JFR_DIR";
 
     static void inject(Instrumentation instrumentation) {
+        String jfrDir = System.getenv(PYROSCOPE_JFR_DIR);
+        inject(instrumentation, jfrDir);
+    }
+
+    static void inject(Instrumentation instrumentation, String jfrDir) {
         try {
             try (InputStream is = BootstrapApiInjector.class.getResourceAsStream(RESOURCE_NAME)) {
                 if (is == null) {
@@ -44,7 +51,7 @@ class BootstrapApiInjector {
                         RESOURCE_NAME);
                     return;
                 }
-                Path tempJar = Files.createTempFile("pyroscope-bootstrap-", ".jar");
+                Path tempJar = createBootstrapJar(jfrDir);
                 tempJar.toFile().deleteOnExit();
                 Files.copy(is, tempJar, StandardCopyOption.REPLACE_EXISTING);
 
@@ -56,5 +63,13 @@ class BootstrapApiInjector {
             DefaultLogger.PRECONFIG_LOGGER.log(Logger.Level.ERROR,
                 "BootstrapApiInjector: Failed to inject bootstrap API: %s", e);
         }
+    }
+
+    private static Path createBootstrapJar(String jfrDir) throws IOException {
+        if (jfrDir != null && !jfrDir.isEmpty()) {
+            Files.createDirectories(Paths.get(jfrDir));
+            return Files.createTempFile(Paths.get(jfrDir), "pyroscope-bootstrap-", ".jar");
+        }
+        return Files.createTempFile("pyroscope-bootstrap-", ".jar");
     }
 }
